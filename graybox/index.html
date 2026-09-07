@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>极速外卖 · 灰盒原型</title>
+  <style>
+    :root {
+      --bg: #1a2332;
+      --panel: #243044;
+      --accent: #ff6b2c;
+      --ok: #3dd68c;
+      --warn: #ffd166;
+      --text: #eef2f7;
+      --muted: #8b9bb4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+    #wrap {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--panel);
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    header .title { font-weight: 700; letter-spacing: 0.04em; }
+    header .stat { font-size: 13px; color: var(--muted); }
+    header .stat strong { color: var(--warn); font-size: 16px; }
+    #stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      background: #0f1620;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #hud-order {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      background: rgba(20, 28, 40, 0.85);
+      border: 1px solid #3a4d6a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      max-width: 240px;
+      pointer-events: none;
+    }
+    #toast {
+      position: absolute;
+      left: 50%;
+      top: 18%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+    #banner {
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      text-align: center;
+      background: linear-gradient(90deg, transparent, #ff6b2c, transparent);
+      color: #fff;
+      font-weight: 700;
+      padding: 6px;
+      font-size: 14px;
+      display: none;
+    }
+    #controls {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      padding: 10px 12px 14px;
+      background: var(--panel);
+      align-items: center;
+    }
+    .hint { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #1a1208;
+      background: var(--accent);
+      min-width: 88px;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.secondary { background: #4a90e2; color: #fff; }
+    button.ghost { background: #3a4d6a; color: var(--text); }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 14, 22, 0.82);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    #overlay.hidden { display: none; }
+    .card {
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 24px;
+      width: min(360px, 92vw);
+      text-align: center;
+      border: 1px solid #3a4d6a;
+    }
+    .card h1 { font-size: 22px; margin-bottom: 8px; }
+    .card p { color: var(--muted); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+    .card .rank { font-size: 40px; color: var(--warn); margin: 8px 0; }
+    .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <div class="title">极速外卖 · 灰盒</div>
+      <div class="stat">时间 <strong id="time">3:00</strong></div>
+      <div class="stat">得分 <strong id="score">0</strong></div>
+      <div class="stat">金币 <strong id="gold">50</strong></div>
+      <div class="stat">载具 <strong id="veh">单车</strong></div>
+    </header>
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="hud-order">点击橙色气泡抢单 · WASD/方向键移动</div>
+      <div id="toast"></div>
+      <div id="banner">天价单出现！</div>
+      <div id="overlay">
+        <div class="card" id="start-card">
+          <h1>极速外卖</h1>
+          <p>180 秒内抢单、取货、送达。去蓝色换车站升级载具，用技能干扰 AI。</p>
+          <p>操作：WASD / 方向键移动 · 点击气泡抢单 · E 或按钮放技能 · F 换车</p>
+          <div class="row">
+            <button id="btn-start">开始配送</button>
+          </div>
+        </div>
+        <div class="card hidden" id="result-card">
+          <h1>下班结算</h1>
+          <div class="rank" id="result-rank">第 1 名</div>
+          <p id="result-detail"></p>
+          <div class="row">
+            <button id="btn-again">再来一局</button>
+            <button class="ghost" id="btn-menu">回标题</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="controls">
+      <div class="hint">近换车站按 F 换车 · 技能：加速(默认) / 倒油(60币买) · 目标：超过 AI 得分</div>
+      <button class="secondary" id="btn-buy" type="button">买倒油 60</button>
+      <button id="btn-skill" type="button">加速</button>
+    </div>
+  </div>
+  <script>
+(function () {
+  const CFG = {
+    duration: 180,
+    startGold: 50,
+    ordersMin: 4,
+    ordersMax: 7,
+    highInterval: 45,
+    protectSec: 2,
+    vehicles: {
+      bike:  { id: "bike",  name: "单车", speed: 95,  cost: 0,   color: "#8fd3ff" },
+      ebike: { id: "ebike", name: "电动", speed: 130, cost: 80,  color: "#3dd68c", needOrders: 1 },
+      moto:  { id: "moto",  name: "摩托", speed: 160, cost: 150, color: "#ff6b2c" }
+    },
+    tiers: [
+      { id: "N", base: 100, time: 45, gold: 40, w: 60, color: "#ffd166" },
+      { id: "G", base: 160, time: 35, gold: 55, w: 25, color: "#ff9f1c" },
+      { id: "H", base: 280, time: 40, gold: 80, w: 12, color: "#ff6b2c" },
+      { id: "S", base: 450, time: 50, gold: 120, w: 3,  color: "#ff2e63" }
+    ],
+    skills: {
+      boost: { cd: 12, dur: 2, mult: 1.4 },
+      oil:   { cd: 14, dur: 2, mult: 0.5, windup: 0.35, range: 60 }
+    }
+  };
+
+  const canvas = document.getElementById("cv");
+  const ctx = canvas.getContext("2d");
+  const el = (id) => document.getElementById(id);
+
+  let W = 800, H = 600;
+  const WORLD = { w: 1200, h: 900 };
+
+  // Simple block map: roads are walkable (dark), buildings block
+  const buildings = [
+    [80, 80, 220, 160], [360, 60, 200, 140], [640, 80, 240, 150], [960, 70, 160, 170],
+    [60, 320, 180, 180], [320, 300, 260, 160], [680, 320, 200, 200], [960, 340, 180, 160],
+    [100, 580, 240, 200], [420, 560, 220, 180], [720, 600, 260, 160], [1040, 580, 120, 200]
+  ];
+
+  const shops = [
+    { x: 250, y: 260, name: "餐A" },
+    { x: 560, y: 250, name: "餐B" },
+    { x: 880, y: 280, name: "餐C" },
+    { x: 300, y: 520, name: "餐D" },
+    { x: 820, y: 520, name: "餐E" }
+  ];
+  const customers = [
+    { x: 150, y: 200 }, { x: 500, y: 180 }, { x: 1000, y: 220 },
+    { x: 180, y: 450 }, { x: 600, y: 480 }, { x: 1050, y: 460 },
+    { x: 250, y: 720 }, { x: 550, y: 700 }, { x: 900, y: 740 }
+  ];
+  const stations = [
+    { x: 480, y: 400 },
+    { x: 900, y: 650 }
+  ];
+
+  const keys = Object.create(null);
+  window.addEventListener("keydown", (e) => {
+    keys[e.code] = true;
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+    if (e.code === "KeyE") trySkill();
+    if (e.code === "KeyF") trySwap();
+  });
+  window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+  function resize() {
+    const stage = el("stage");
+    const rect = stage.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(320, rect.width);
+    H = Math.max(240, rect.height);
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function circleHitBuilding(x, y, r) {
+    for (const [bx, by, bw, bh] of buildings) {
+      const nx = clamp(x, bx, bx + bw);
+      const ny = clamp(y, by, by + bh);
+      if (Math.hypot(x - nx, y - ny) < r) return true;
+    }
+    return false;
+  }
+  function moveEntity(ent, dx, dy, speed, dt) {
+    const len = Math.hypot(dx, dy) || 1;
+    const mx = (dx / len) * speed * dt;
+    const my = (dy / len) * speed * dt;
+    let nx = ent.x + mx;
+    let ny = ent.y + my;
+    if (!circleHitBuilding(nx, ent.y, ent.r)) ent.x = nx;
+    if (!circleHitBuilding(ent.x, ny, ent.r)) ent.y = ny;
+    ent.x = clamp(ent.x, 20, WORLD.w - 20);
+    ent.y = clamp(ent.y, 20, WORLD.h - 20);
+  }
+
+  function pickTier(forceS) {
+    if (forceS) return CFG.tiers[3];
+    const sum = CFG.tiers.reduce((s, t) => s + t.w, 0);
+    let r = Math.random() * sum;
+    for (const t of CFG.tiers) {
+      r -= t.w;
+      if (r <= 0) return t;
+    }
+    return CFG.tiers[0];
+  }
+
+  function toast(msg) {
+    const t = el("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => t.classList.remove("show"), 1400);
+  }
+
+  function showBanner(msg) {
+    const b = el("banner");
+    b.textContent = msg;
+    b.style.display = "block";
+    clearTimeout(showBanner._timer);
+    showBanner._timer = setTimeout(() => { b.style.display = "none"; }, 2000);
+  }
+
+  let state;
+
+  function createOrder(forceS) {
+    const tier = pickTier(forceS);
+    let shop = shops[Math.floor(Math.random() * shops.length)];
+    let cust = customers[Math.floor(Math.random() * customers.length)];
+    let guard = 0;
+    while (dist(shop, cust) < 180 && guard++ < 20) {
+      cust = customers[Math.floor(Math.random() * customers.length)];
+    }
+    return {
+      id: Math.random().toString(36).slice(2, 8),
+      tier: tier.id,
+      base: tier.base,
+      gold: tier.gold,
+      color: tier.color,
+      timeLimit: tier.time,
+      shop: { x: shop.x, y: shop.y },
+      cust: { x: cust.x, y: cust.y },
+      owner: null, // "player" | "ai" | null
+      phase: "open", // open | to_shop | to_cust
+      expireAt: null
+    };
+  }
+
+  function ensureOrders(forceS) {
+    while (state.orders.filter((o) => o.phase === "open").length < CFG.ordersMin) {
+      if (state.orders.length >= CFG.ordersMax && !forceS) break;
+      state.orders.push(createOrder(forceS));
+      if (forceS) break;
+    }
+  }
+
+  function resetGame() {
+    state = {
+      running: true,
+      simTime: 0,
+      timeLeft: CFG.duration,
+      score: 0,
+      gold: CFG.startGold,
+      doneOrders: 0,
+      streak: 0,
+      vehicle: "bike",
+      player: { x: 600, y: 450, r: 14, boostUntil: 0, slowUntil: 0, oilWindup: 0 },
+      ai: { x: 700, y: 500, r: 14, score: 0, orderId: null, boostUntil: 0, slowUntil: 0 },
+      orders: [],
+      cam: { x: 0, y: 0 },
+      skill: "boost",
+      oilOwned: false,
+      cdBoost: 0,
+      cdOil: 0,
+      swapUntil: 0,
+      nextHigh: CFG.highInterval,
+      _pendingVehicle: null,
+      _oilPending: false,
+      _protect: false
+    };
+    ensureOrders(false);
+    el("overlay").classList.add("hidden");
+    el("result-card").classList.add("hidden");
+    el("start-card").classList.add("hidden");
+    updateHudButtons();
+    toast("开局！去抢一单");
+  }
+
+  function endGame() {
+    state.running = false;
+    const beat = state.score >= state.ai.score;
+    el("result-rank").textContent = beat ? "第 1 名" : "第 2 名";
+    el("result-detail").textContent =
+      `得分 ${state.score}（AI ${state.ai.score}）· 完成 ${state.doneOrders} 单 · 金币 ${state.gold}`;
+    el("result-card").classList.remove("hidden");
+    el("start-card").classList.add("hidden");
+    el("overlay").classList.remove("hidden");
+  }
+
+  function playerSpeed() {
+    let s = CFG.vehicles[state.vehicle].speed;
+    const now = state.timeLeft; // use sim clock via absolute timers stored as seconds remaining deltas — use performance based below
+    return s;
+  }
+
+  function effSpeed(ent, base) {
+    let s = base;
+    if (ent.boostUntil > state.simTime) s *= CFG.skills.boost.mult;
+    if (ent.slowUntil > state.simTime) s *= CFG.skills.oil.mult;
+    return s;
+  }
+
+  function claimOrder(order, who) {
+    if (order.phase !== "open") return false;
+    if (who === "player" && state.orders.some((o) => o.owner === "player")) {
+      toast("先送完当前单");
+      return false;
+    }
+    if (who === "ai" && state.orders.some((o) => o.owner === "ai")) return false;
+    order.owner = who;
+    order.phase = "to_shop";
+    order.expireAt = state.simTime + order.timeLimit;
+    if (who === "player") toast(`抢到${order.tier}单！去取货`);
+    else toast("AI 抢走一单");
+    return true;
+  }
+
+  function finishOrder(order, who) {
+    const remain = order.expireAt - state.simTime;
+    const ratio = remain / order.timeLimit;
+    let bonus = ratio >= 0.5 ? 1.2 : ratio >= 0.2 ? 1.0 : 0.8;
+    let points = Math.round(order.base * bonus);
+    if (who === "player") {
+      state.streak += 1;
+      if (state.streak === 2) points += 20;
+      if (state.streak === 3) points += 40;
+      if (state.streak >= 4) points += 60;
+      state.score += points;
+      state.gold += order.gold;
+      state.doneOrders += 1;
+      toast(`送达 +${points}`);
+    } else {
+      state.ai.score += points;
+    }
+    state.orders = state.orders.filter((o) => o.id !== order.id);
+    ensureOrders(false);
+  }
+
+  function failOrder(order) {
+    if (order.owner === "player") {
+      state.streak = 0;
+      toast("超时！订单失败");
+    }
+    state.orders = state.orders.filter((o) => o.id !== order.id);
+    ensureOrders(false);
+  }
+
+  function nearStation() {
+    return stations.some((s) => dist(state.player, s) < 40);
+  }
+
+  function trySwap() {
+    if (!state.running || state.swapUntil > state.simTime) return;
+    if (!nearStation()) {
+      toast("靠近蓝色换车站");
+      return;
+    }
+    const order = ["bike", "ebike", "moto"];
+    const cur = order.indexOf(state.vehicle);
+    const nextId = order[(cur + 1) % order.length];
+    const next = CFG.vehicles[nextId];
+    if (next.needOrders && state.doneOrders < next.needOrders) {
+      toast("先完成 1 单再租电动");
+      return;
+    }
+    if (next.cost > state.gold && nextId !== "bike") {
+      toast("金币不足");
+      return;
+    }
+    state.swapUntil = state.simTime + 1.5;
+    state._pendingVehicle = nextId;
+    toast("换车中… 1.5s");
+  }
+
+  function updateHudButtons() {
+    const btn = el("btn-skill");
+    const buy = el("btn-buy");
+    if (state.oilOwned) {
+      buy.textContent = "已有倒油";
+      buy.disabled = true;
+      btn.textContent = state.skill === "oil" ? "倒油" : "加速";
+    } else {
+      buy.disabled = !state.running;
+      buy.textContent = "买倒油 60";
+    }
+    const cd = state.skill === "oil" ? state.cdOil : state.cdBoost;
+    btn.disabled = !state.running || cd > 0;
+    if (cd > 0) btn.textContent = `${state.skill === "oil" ? "倒油" : "加速"} ${Math.ceil(cd)}s`;
+    else btn.textContent = state.skill === "oil" ? "倒油" : "加速";
+  }
+
+  function trySkill() {
+    if (!state.running) return;
+    if (state.skill === "boost") {
+      if (state.cdBoost > 0) return;
+      state.player.boostUntil = state.simTime + CFG.skills.boost.dur;
+      state.cdBoost = CFG.skills.boost.cd;
+      toast("加速！");
+    } else {
+      if (state.cdOil > 0) return;
+      state.player.oilWindup = CFG.skills.oil.windup;
+      state._oilPending = true;
+      toast("倒油前摇…");
+    }
+    updateHudButtons();
+  }
+
+  function updateAI(dt) {
+    const ai = state.ai;
+    let order = state.orders.find((o) => o.owner === "ai");
+    if (!order) {
+      const open = state.orders.filter((o) => o.phase === "open");
+      if (open.length) {
+        open.sort((a, b) => (dist(ai, a.shop) / a.base) - (dist(ai, b.shop) / b.base));
+        claimOrder(open[0], "ai");
+        order = open[0];
+      }
+    }
+    let target = null;
+    if (order) {
+      target = order.phase === "to_shop" ? order.shop : order.cust;
+      if (order.phase === "to_shop" && dist(ai, order.shop) < 28) {
+        order.phase = "to_cust";
+      } else if (order.phase === "to_cust" && dist(ai, order.cust) < 28) {
+        finishOrder(order, "ai");
+      }
+    } else {
+      target = { x: 600, y: 450 };
+    }
+    if (target) {
+      moveEntity(ai, target.x - ai.x, target.y - ai.y, effSpeed(ai, 110), dt);
+    }
+  }
+
+  function updatePlayer(dt) {
+    let dx = 0, dy = 0;
+    if (keys["KeyW"] || keys["ArrowUp"]) dy -= 1;
+    if (keys["KeyS"] || keys["ArrowDown"]) dy += 1;
+    if (keys["KeyA"] || keys["ArrowLeft"]) dx -= 1;
+    if (keys["KeyD"] || keys["ArrowRight"]) dx += 1;
+    if (dx || dy) {
+      const base = CFG.vehicles[state.vehicle].speed;
+      moveEntity(state.player, dx, dy, effSpeed(state.player, base), dt);
+    }
+
+    if (state.swapUntil && state.simTime >= state.swapUntil && state._pendingVehicle) {
+      const next = CFG.vehicles[state._pendingVehicle];
+      if (next.id !== "bike") state.gold -= next.cost;
+      state.vehicle = next.id;
+      state._pendingVehicle = null;
+      state.swapUntil = 0;
+      toast(`已换成${next.name}`);
+    }
+
+    if (state._oilPending) {
+      state.player.oilWindup -= dt;
+      if (state.player.oilWindup <= 0) {
+        state._oilPending = false;
+        state.cdOil = CFG.skills.oil.cd;
+        state.ai.slowUntil = state.simTime + CFG.skills.oil.dur;
+        state.score += 15;
+        toast("倒油命中 AI +15");
+        updateHudButtons();
+      }
+    }
+
+    const mine = state.orders.find((o) => o.owner === "player");
+    if (mine) {
+      const protect = mine.phase === "to_cust" && (mine.expireAt - state.simTime) <= CFG.protectSec;
+      if (mine.phase === "to_shop" && dist(state.player, mine.shop) < 30) {
+        mine.phase = "to_cust";
+        toast("取货成功！去送达");
+      } else if (mine.phase === "to_cust" && dist(state.player, mine.cust) < 30) {
+        finishOrder(mine, "player");
+      }
+      state._protect = protect;
+    } else {
+      state._protect = false;
+    }
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    state.simTime += dt;
+    state.timeLeft -= dt;
+    state.cdBoost = Math.max(0, state.cdBoost - dt);
+    state.cdOil = Math.max(0, state.cdOil - dt);
+    state.nextHigh -= dt;
+
+    if (state.nextHigh <= 0) {
+      state.nextHigh = CFG.highInterval;
+      if (Math.random() < 0.35) {
+        state.orders.push(createOrder(true));
+        showBanner("天价单出现！");
+      }
+    }
+
+    for (const o of [...state.orders]) {
+      if (o.owner && o.expireAt != null && state.simTime >= o.expireAt) failOrder(o);
+    }
+
+    updatePlayer(dt);
+    updateAI(dt);
+
+    state.cam.x = clamp(state.player.x - W / 2, 0, WORLD.w - W);
+    state.cam.y = clamp(state.player.y - H / 2, 0, WORLD.h - H);
+
+    if (state.timeLeft <= 0) {
+      state.timeLeft = 0;
+      endGame();
+    }
+    updateHudButtons();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(-state.cam.x, -state.cam.y);
+
+    // ground
+    ctx.fillStyle = "#2a3548";
+    ctx.fillRect(0, 0, WORLD.w, WORLD.h);
+    // grid roads feel
+    ctx.strokeStyle = "#334158";
+    ctx.lineWidth = 2;
+    for (let x = 0; x < WORLD.w; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD.h); ctx.stroke();
+    }
+    for (let y = 0; y < WORLD.h; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD.w, y); ctx.stroke();
+    }
+
+    for (const [bx, by, bw, bh] of buildings) {
+      ctx.fillStyle = "#1b2433";
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = "#3d516e";
+      ctx.strokeRect(bx, by, bw, bh);
+    }
+
+    for (const s of shops) {
+      ctx.fillStyle = "#5c7cfa";
+      ctx.beginPath(); ctx.arc(s.x, s.y, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("取", s.x, s.y + 4);
+    }
+    for (const c of customers) {
+      ctx.fillStyle = "#be4bdb";
+      ctx.beginPath(); ctx.arc(c.x, c.y, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("客", c.x, c.y + 3);
+    }
+    for (const s of stations) {
+      ctx.fillStyle = "#339af0";
+      ctx.fillRect(s.x - 22, s.y - 16, 44, 32);
+      ctx.fillStyle = "#fff";
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("换车", s.x, s.y + 4);
+    }
+
+    for (const o of state.orders) {
+      if (o.phase === "open") {
+        const p = { x: (o.shop.x + o.cust.x) / 2, y: (o.shop.y + o.cust.y) / 2 };
+        // pull bubble toward mid-road-ish: use shop with offset
+        const bx = o.shop.x + 30;
+        const by = o.shop.y - 40;
+        o._bubble = { x: bx, y: by };
+        ctx.fillStyle = o.color;
+        ctx.beginPath(); ctx.arc(bx, by, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#1a1208";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(o.base), bx, by + 4);
+        ctx.fillStyle = o.color;
+        ctx.font = "10px sans-serif";
+        ctx.fillText(o.tier, bx, by - 22);
+      } else if (o.owner === "player") {
+        const t = o.phase === "to_shop" ? o.shop : o.cust;
+        ctx.strokeStyle = "#ffd166";
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(state.player.x, state.player.y);
+        ctx.lineTo(t.x, t.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // AI
+    ctx.fillStyle = "#fa5252";
+    ctx.beginPath(); ctx.arc(state.ai.x, state.ai.y, state.ai.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("AI", state.ai.x, state.ai.y + 3);
+    if (state.ai.slowUntil > state.simTime) {
+      ctx.strokeStyle = "#ffd166";
+      ctx.beginPath(); ctx.arc(state.ai.x, state.ai.y, 22, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Player
+    const vc = CFG.vehicles[state.vehicle].color;
+    ctx.fillStyle = vc;
+    ctx.beginPath(); ctx.arc(state.player.x, state.player.y, state.player.r, 0, Math.PI * 2); ctx.fill();
+    if (state._protect) {
+      ctx.strokeStyle = "#3dd68c";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(state.player.x, state.player.y, 20, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    if (state.player.boostUntil > state.simTime) {
+      ctx.strokeStyle = "#74c0fc";
+      ctx.beginPath(); ctx.arc(state.player.x, state.player.y, 24, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (state.swapUntil > state.simTime) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.beginPath(); ctx.arc(state.player.x, state.player.y, 28, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillText("换车", state.player.x, state.player.y + 3);
+    }
+    if (state._oilPending) {
+      ctx.strokeStyle = "#ff922b";
+      ctx.beginPath(); ctx.arc(state.ai.x, state.ai.y, 36, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    ctx.restore();
+
+    // HUD texts
+    const m = Math.floor(state.timeLeft / 60);
+    const s = Math.floor(state.timeLeft % 60);
+    el("time").textContent = `${m}:${s.toString().padStart(2, "0")}`;
+    el("score").textContent = `${state.score} / AI ${state.ai.score}`;
+    el("gold").textContent = String(state.gold);
+    el("veh").textContent = CFG.vehicles[state.vehicle].name;
+
+    const mine = state.orders && state.orders.find((o) => o.owner === "player");
+    const hud = el("hud-order");
+    if (!state.running) {
+      hud.textContent = "对局结束";
+    } else if (!mine) {
+      hud.textContent = "无订单：点击橙色气泡抢单";
+    } else {
+      const left = Math.max(0, mine.expireAt - state.simTime);
+      hud.textContent = mine.phase === "to_shop"
+        ? `去取货 · 剩余 ${left.toFixed(0)}s${state._protect ? "" : ""}`
+        : `去送达 · 剩余 ${left.toFixed(0)}s${state._protect ? " · 保护中" : ""}`;
+    }
+  }
+
+  canvas.addEventListener("click", (e) => {
+    if (!state || !state.running) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left + state.cam.x;
+    const y = e.clientY - rect.top + state.cam.y;
+    for (const o of state.orders) {
+      if (o.phase !== "open" || !o._bubble) continue;
+      if (Math.hypot(x - o._bubble.x, y - o._bubble.y) < 22) {
+        const openCount = state.orders.filter((x) => x.phase === "open" && x.id === o.id).length;
+        if (openCount) claimOrder(o, "player");
+        break;
+      }
+    }
+  });
+
+  el("btn-start").onclick = () => resetGame();
+  el("btn-again").onclick = () => resetGame();
+  el("btn-menu").onclick = () => {
+    state.running = false;
+    el("result-card").classList.add("hidden");
+    el("start-card").classList.remove("hidden");
+    el("overlay").classList.remove("hidden");
+  };
+  el("btn-skill").onclick = () => trySkill();
+  el("btn-buy").onclick = () => {
+    if (!state.running || state.oilOwned) return;
+    if (state.gold < 60) { toast("金币不足"); return; }
+    state.gold -= 60;
+    state.oilOwned = true;
+    state.skill = "oil";
+    toast("已解锁倒油（再按技能键切换？本灰盒：技能键改为倒油）");
+    // toggle: long-term allow switch — click buy area already owned; add click on skill label cycle
+    updateHudButtons();
+  };
+
+  // double-click skill button cycles when oil owned
+  el("btn-skill").addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    if (!state.oilOwned) return;
+    state.skill = state.skill === "oil" ? "boost" : "oil";
+    updateHudButtons();
+    toast(`技能切换为：${state.skill === "oil" ? "倒油" : "加速"}`);
+  });
+
+  state = {
+    running: false,
+    timeLeft: CFG.duration,
+    score: 0,
+    gold: CFG.startGold,
+    doneOrders: 0,
+    streak: 0,
+    vehicle: "bike",
+    player: { x: 600, y: 450, r: 14, boostUntil: 0, slowUntil: 0, oilWindup: 0 },
+    ai: { x: 700, y: 500, r: 14, score: 0, boostUntil: 0, slowUntil: 0 },
+    orders: [],
+    cam: { x: 0, y: 0 },
+    skill: "boost",
+    oilOwned: false,
+    cdBoost: 0,
+    cdOil: 0,
+    swapUntil: 0,
+    nextHigh: CFG.highInterval,
+    simTime: 0
+  };
+
+  resize();
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (state.running) update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+  </script>
+</body>
+</html>
