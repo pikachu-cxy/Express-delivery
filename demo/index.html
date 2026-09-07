@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>极速外卖 · 可玩 Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 大厅 -->
+    <section id="screen-lobby" class="screen">
+      <div class="lobby-bg"></div>
+      <div class="lobby-card">
+        <p class="eyebrow">抖音小游戏试用 Demo</p>
+        <h1>极速外卖</h1>
+        <p class="sub">180 秒大学城抢单 · 换车 · 坑 AI · 准时送达</p>
+        <div class="mode-row">
+          <button type="button" class="btn primary" id="btn-play-180">开始加班（180秒）</button>
+          <button type="button" class="btn ghost" id="btn-play-90">快速体验（90秒）</button>
+        </div>
+        <ul class="tips">
+          <li>点橙色气泡抢单 → 蓝点取货 → 紫点送达</li>
+          <li>靠近蓝色「换」站升级载具</li>
+          <li>左摇杆移动 · 右键放技能</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 对局 -->
+    <section id="screen-game" class="screen hidden">
+      <header class="topbar">
+        <div class="brand">极速外卖</div>
+        <div class="pill time" id="hud-time">3:00</div>
+        <div class="pill">分 <b id="hud-score">0</b></div>
+        <div class="pill">币 <b id="hud-gold">50</b></div>
+        <div class="pill">车 <b id="hud-veh">单车</b></div>
+      </header>
+
+      <div id="rankbar" class="rankbar"></div>
+
+      <div id="stage">
+        <canvas id="cv"></canvas>
+        <div id="order-card" class="order-card">点击气泡抢一单</div>
+        <div id="banner" class="banner hidden"></div>
+        <div id="toast" class="toast"></div>
+
+        <!-- 三步引导 -->
+        <div id="tutorial" class="tutorial hidden">
+          <div class="tutorial-box">
+            <p id="tutorial-text">第一步：点击橙色气泡抢单</p>
+            <button type="button" class="btn ghost small" id="btn-skip-tutorial">跳过</button>
+          </div>
+        </div>
+
+        <!-- 换车面板 -->
+        <div id="swap-panel" class="swap-panel hidden">
+          <h3>换车站</h3>
+          <div id="swap-list"></div>
+          <button type="button" class="btn ghost small" id="btn-close-swap">关闭</button>
+        </div>
+
+        <!-- 虚拟摇杆 -->
+        <div id="joystick" class="joystick">
+          <div class="joy-base"><div class="joy-knob" id="joy-knob"></div></div>
+        </div>
+
+        <div class="action-pad">
+          <button type="button" class="act-btn" id="btn-interact">换车</button>
+          <button type="button" class="act-btn skill" id="btn-skill">加速</button>
+        </div>
+      </div>
+
+      <footer class="bottombar">
+        <div class="skill-shop">
+          <button type="button" class="btn tiny" id="btn-buy-oil">倒油 60币</button>
+          <button type="button" class="btn tiny" id="btn-buy-bait">诱饵 60币</button>
+        </div>
+        <div class="hint">WASD / 摇杆移动 · E 技能 · F 换车 · 点气泡抢单</div>
+      </footer>
+    </section>
+
+    <!-- 结算 -->
+    <section id="screen-result" class="screen hidden">
+      <div class="result-card">
+        <p class="eyebrow">下班结算</p>
+        <div class="rank-big" id="result-rank">第 1 名</div>
+        <p id="result-detail" class="sub"></p>
+        <p id="result-highlight" class="highlight"></p>
+        <div class="mode-row">
+          <button type="button" class="btn primary" id="btn-again">再来一局</button>
+          <button type="button" class="btn ghost" id="btn-ad">看视频奖励×2（模拟）</button>
+        </div>
+        <button type="button" class="btn text" id="btn-lobby">回大厅</button>
+      </div>
+    </section>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
