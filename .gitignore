@@ -1,0 +1,21 @@
+# 忽略
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+!.env.example
+*.token
+.secrets/
+
+# 编辑器 / 本地
+.idea/
+.vscode/
+*.swp
+.cursor/
+
+# 依赖与构建（预留）
+node_modules/
+dist/
+build/
+temp/
