@@ -315,8 +315,7 @@ h1 {
   padding: 8px 10px 12px;
   background: #243044;
 }
-.skill-shop { display: flex; gap: 6px; }
-.hint { font-size: 11px; color: #8b9bb4; margin-left: auto; }
+.hint { font-size: 11px; color: #8b9bb4; }
 
 /* Result */
 #screen-result {

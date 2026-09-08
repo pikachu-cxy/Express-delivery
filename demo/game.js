@@ -9,9 +9,9 @@
     protectSec: 2,
     sameSpotWait: 0.8,
     vehicles: {
-      bike:  { id: "bike",  name: "单车", speed: 100, cost: 0,   color: "#4dabf7", need: 0 },
-      ebike: { id: "ebike", name: "电动", speed: 135, cost: 80,  color: "#3dd68c", need: 1 },
-      moto:  { id: "moto",  name: "摩托", speed: 168, cost: 150, color: "#ff6b2c", need: 0 }
+      bike:  { id: "bike",  name: "单车", speed: 100, cost: 0,   color: "#4dabf7", need: 0, skill: "bell",  skillName: "铃铛",  passive: "窄路快" },
+      ebike: { id: "ebike", name: "电动", speed: 135, cost: 80,  color: "#3dd68c", need: 1, skill: "boost", skillName: "冲刺",  passive: "取货快" },
+      moto:  { id: "moto",  name: "摩托", speed: 168, cost: 150, color: "#ff6b2c", need: 0, skill: "oil",   skillName: "倒油",  passive: "极速" }
     },
     tiers: [
       { id: "N", base: 100, time: 45, gold: 40, w: 55, color: "#ffd166" },
@@ -20,9 +20,9 @@
       { id: "S", base: 450, time: 50, gold: 120, w: 3,  color: "#ff2e63" }
     ],
     skills: {
+      bell:  { cd: 12, windup: 0.15, stun: 0.6, slowDur: 1.0, slowMult: 0.85, radius: 90 },
       boost: { cd: 12, dur: 2, mult: 1.4 },
-      oil:   { cd: 14, dur: 2, mult: 0.5, windup: 0.35, cost: 60 },
-      bait:  { cd: 16, dur: 3, cost: 60 }
+      oil:   { cd: 14, dur: 2, mult: 0.5, windup: 0.35, range: 220 }
     }
   };
 
@@ -256,12 +256,16 @@
   }
 
   function effSpeed(rider) {
+    if (rider.stunUntil > state.simTime) return 0;
     let s = CFG.vehicles[rider.vehicle].speed;
     if (rider.boostUntil > state.simTime) s *= CFG.skills.boost.mult;
-    if (rider.slowUntil > state.simTime) s *= CFG.skills.oil.mult;
-    // bike narrow path bonus: near buildings edges
-    if (rider.vehicle === "bike") s *= 1.08;
+    if (rider.slowUntil > state.simTime) s *= rider.slowMult || CFG.skills.oil.mult;
+    if (rider.vehicle === "bike") s *= 1.15;
     return s;
+  }
+
+  function vehicleSkillId() {
+    return CFG.vehicles[state.riders.player.vehicle].skill;
   }
 
   function advanceTutorial(step) {
@@ -296,10 +300,10 @@
       const locked = v.need && state.doneOrders < v.need;
       const poor = v.cost > 0 && state.gold < v.cost && state.riders.player.vehicle !== v.id;
       btn.disabled = locked || poor;
-      let tip = v.cost ? `${v.cost} 币` : "免费";
+      let tip = v.cost ? `${v.cost}币` : "免费";
       if (locked) tip = `完成${v.need}单解锁`;
       if (state.riders.player.vehicle === v.id) tip = "当前";
-      btn.innerHTML = `<span>${v.name}</span><span>${tip}</span>`;
+      btn.innerHTML = `<span>${v.name} · ${v.skillName}<br><small style="font-weight:500;color:#5b6b7c">${v.passive}</small></span><span>${tip}</span>`;
       btn.onclick = () => startSwap(v.id);
       list.appendChild(btn);
     });
@@ -323,45 +327,34 @@
   function useSkill() {
     if (!state.running) return;
     const p = state.riders.player;
-    const kind = state.activeSkill;
+    const kind = vehicleSkillId();
     if (kind === "boost") {
       if (state.cd.boost > 0) return;
       p.boostUntil = state.simTime + CFG.skills.boost.dur;
       state.cd.boost = CFG.skills.boost.cd;
-      toast("加速冲刺！");
+      toast("外卖冲刺！");
+    } else if (kind === "bell") {
+      if (state.cd.bell > 0) return;
+      state.bellWindup = CFG.skills.bell.windup;
+      state.bellPending = true;
+      toast("铃铛前摇…");
     } else if (kind === "oil") {
       if (state.cd.oil > 0) return;
       state.oilWindup = CFG.skills.oil.windup;
       state.oilPending = true;
-      toast("倒油前摇…");
-    } else if (kind === "bait") {
-      if (state.cd.bait > 0) return;
-      const bait = createOrder(false);
-      bait.bait = true;
-      bait.base = 999;
-      bait.color = "#adb5bd";
-      bait.tier = "假";
-      bait.bubble = { x: p.x + 40, y: p.y - 30 };
-      bait.shop = { x: p.x + 80, y: p.y, name: "假店" };
-      state.orders.push(bait);
-      state.cd.bait = CFG.skills.bait.cd;
-      setTimeout(() => {
-        if (!state) return;
-        state.orders = state.orders.filter((o) => o.id !== bait.id);
-      }, CFG.skills.bait.dur * 1000);
-      toast("假单诱饵已放出");
-      // AI might go for bait if close — handled in AI as normal open order visual
+      toast("甩尾倒油…");
     }
     refreshSkillBtn();
   }
 
   function refreshSkillBtn() {
     const btn = $("btn-skill");
-    const names = { boost: "加速", oil: "倒油", bait: "诱饵" };
-    const cds = state.cd;
-    const cd = cds[state.activeSkill] || 0;
-    btn.disabled = !state.running || cd > 0 || state.oilPending;
-    btn.textContent = cd > 0 ? `${names[state.activeSkill]} ${Math.ceil(cd)}` : names[state.activeSkill];
+    if (!state) return;
+    const v = CFG.vehicles[state.riders.player.vehicle];
+    const kind = v.skill;
+    const cd = state.cd[kind] || 0;
+    btn.disabled = !state.running || cd > 0 || state.oilPending || state.bellPending;
+    btn.textContent = cd > 0 ? `${v.skillName} ${Math.ceil(cd)}` : v.skillName;
   }
 
   function updateRankbar() {
@@ -382,6 +375,8 @@
       score: 0,
       boostUntil: 0,
       slowUntil: 0,
+      stunUntil: 0,
+      slowMult: 0.5,
       waitUntil: 0
     };
   }
@@ -398,13 +393,14 @@
       streak: 0,
       orders: [],
       cam: { x: 0, y: 0 },
-      activeSkill: "boost",
-      owned: { oil: false, bait: false },
-      cd: { boost: 0, oil: 0, bait: 0 },
+      activeSkill: null,
+      cd: { bell: 0, boost: 0, oil: 0 },
       swapUntil: 0,
       pendingVehicle: null,
       oilPending: false,
       oilWindup: 0,
+      bellPending: false,
+      bellWindup: 0,
       nextHigh: CFG.highInterval,
       tutorialStep: skipTut ? 4 : 1,
       tutorialDone: skipTut,
@@ -418,14 +414,12 @@
     ensureOrders();
     showScreen("game");
     $("swap-panel").classList.add("hidden");
-    $("btn-buy-oil").disabled = false;
-    $("btn-buy-bait").disabled = false;
     resize();
     if (!skipTut) advanceTutorial(1);
     else $("tutorial").classList.add("hidden");
     refreshSkillBtn();
     updateHud();
-    toast("开局！大学城高峰来了");
+    toast("开局骑单车 · 技能：铃铛");
   }
 
   function endGame() {
@@ -497,7 +491,32 @@
       p.vehicle = v.id;
       state.pendingVehicle = null;
       state.swapUntil = 0;
-      toast(`已换成${v.name}`);
+      toast(`已换成${v.name} · 技能：${v.skillName}`);
+      refreshSkillBtn();
+    }
+
+    if (state.bellPending) {
+      state.bellWindup -= dt;
+      if (state.bellWindup <= 0) {
+        state.bellPending = false;
+        state.cd.bell = CFG.skills.bell.cd;
+        let hits = 0;
+        for (const r of Object.values(state.riders)) {
+          if (r.isPlayer) continue;
+          if (dist(p, r) > CFG.skills.bell.radius) continue;
+          const o = heldBy(r.id);
+          const isProtected = o && o.phase === "to_cust" && (o.expireAt - state.simTime) <= CFG.protectSec;
+          if (isProtected) continue;
+          r.stunUntil = state.simTime + CFG.skills.bell.stun;
+          r.slowUntil = state.simTime + CFG.skills.bell.slowDur;
+          r.slowMult = CFG.skills.bell.slowMult;
+          hits += 1;
+        }
+        if (hits > 0) {
+          state.riders.player.score += 10;
+          toast(`铃铛惊吓 ×${hits} +10`);
+        } else toast("铃铛落空");
+      }
     }
 
     if (state.oilPending) {
@@ -505,7 +524,6 @@
       if (state.oilWindup <= 0) {
         state.oilPending = false;
         state.cd.oil = CFG.skills.oil.cd;
-        // hit nearest AI not in protect
         let best = null;
         let bestD = 9999;
         for (const r of Object.values(state.riders)) {
@@ -513,12 +531,13 @@
           const d = dist(p, r);
           if (d < bestD) { bestD = d; best = r; }
         }
-        if (best && bestD < 220) {
+        if (best && bestD <= CFG.skills.oil.range) {
           const o = heldBy(best.id);
           const isProtected = o && o.phase === "to_cust" && (o.expireAt - state.simTime) <= CFG.protectSec;
           if (isProtected) toast("对方保护中，倒油失败");
           else {
             best.slowUntil = state.simTime + CFG.skills.oil.dur;
+            best.slowMult = CFG.skills.oil.mult;
             state.riders.player.score += 15;
             toast(`倒油命中 ${best.name} +15`);
           }
@@ -586,9 +605,9 @@
     if (!state || !state.running) return;
     state.simTime += dt;
     state.timeLeft -= dt;
+    state.cd.bell = Math.max(0, state.cd.bell - dt);
     state.cd.boost = Math.max(0, state.cd.boost - dt);
     state.cd.oil = Math.max(0, state.cd.oil - dt);
-    state.cd.bait = Math.max(0, state.cd.bait - dt);
     state.nextHigh -= dt;
 
     if (state.nextHigh <= 0) {
@@ -661,6 +680,14 @@
       ctx.arc(r.x, r.y, 24, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+    if (r.stunUntil > state.simTime) {
+      ctx.strokeStyle = "#ffec99";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 28, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
     }
     ctx.fillStyle = "#fff";
     ctx.font = "bold 10px sans-serif";
@@ -799,6 +826,15 @@
       }
     }
 
+    if (state.bellPending) {
+      ctx.strokeStyle = "#ffe066";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, CFG.skills.bell.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
     if (state.oilPending) {
       ctx.strokeStyle = "#ff922b";
       ctx.lineWidth = 2;
@@ -913,43 +949,6 @@
   $("btn-close-swap").onclick = () => $("swap-panel").classList.add("hidden");
   $("btn-interact").onclick = () => openSwapPanel();
   $("btn-skill").onclick = () => useSkill();
-  $("btn-buy-oil").onclick = () => {
-    if (!state || !state.running || state.owned.oil) return;
-    if (state.gold < 60) return toast("金币不足");
-    state.gold -= 60;
-    state.owned.oil = true;
-    state.activeSkill = "oil";
-    $("btn-buy-oil").disabled = true;
-    toast("已装备倒油（点技能键释放）");
-    refreshSkillBtn();
-  };
-  $("btn-buy-bait").onclick = () => {
-    if (!state || !state.running || state.owned.bait) return;
-    if (state.gold < 60) return toast("金币不足");
-    state.gold -= 60;
-    state.owned.bait = true;
-    state.activeSkill = "bait";
-    $("btn-buy-bait").disabled = true;
-    toast("已装备诱饵");
-    refreshSkillBtn();
-  };
-
-  // long-press skill to cycle owned skills
-  let skillTimer = null;
-  $("btn-skill").addEventListener("pointerdown", () => {
-    skillTimer = setTimeout(() => {
-      if (!state) return;
-      const opts = ["boost"];
-      if (state.owned.oil) opts.push("oil");
-      if (state.owned.bait) opts.push("bait");
-      const i = opts.indexOf(state.activeSkill);
-      state.activeSkill = opts[(i + 1) % opts.length];
-      toast(`切换技能：${state.activeSkill === "boost" ? "加速" : state.activeSkill === "oil" ? "倒油" : "诱饵"}`);
-      refreshSkillBtn();
-    }, 450);
-  });
-  $("btn-skill").addEventListener("pointerup", () => clearTimeout(skillTimer));
-  $("btn-skill").addEventListener("pointerleave", () => clearTimeout(skillTimer));
 
   // loop
   let last = performance.now();

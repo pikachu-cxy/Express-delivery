@@ -7,6 +7,7 @@
 | [design/README.md](./design/README.md) | **内容设计总览（风格/道具/地图）** |
 | [design/ART_DIRECTION.md](./design/ART_DIRECTION.md) | 美术风格锁定与视觉规范 |
 | [design/PROPS.md](./design/PROPS.md) | 道具与物品设计 |
+| [design/VEHICLE_SKILLS.md](./design/VEHICLE_SKILLS.md) | 载具专属技能（换车即换技） |
 | [design/MAPS_AND_SCENES.md](./design/MAPS_AND_SCENES.md) | 地图与场景设计 |
 | [specs/USER_STORIES.md](./specs/USER_STORIES.md) | 用户故事与功能清单 |
 | [specs/UI_IA.md](./specs/UI_IA.md) | 界面信息架构与局内 HUD |

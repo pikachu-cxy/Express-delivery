@@ -28,10 +28,9 @@ demo\start-lan.bat
 
 ## 当前 Demo 能力（对齐 MVP）
 
-- 大学城地图、三载具换车
+- 大学城地图、三载具换车（铃铛 / 冲刺 / 倒油）
 - 抢单 / 取货 / 送达、天价单播报
-- 加速 / 倒油 / 假单诱饵
 - 2 名 AI 对手、新手引导、虚拟摇杆
 - 结算与激励视频×2（模拟）
 
-好友联机房尚未接入，见 PRD 后续版本。
+载具扩展技能（含 P2 迈巴赫「拿来吧你」）见 [`docs/design/VEHICLE_SKILLS.md`](docs/design/VEHICLE_SKILLS.md)。好友联机见 PRD 后续版本。

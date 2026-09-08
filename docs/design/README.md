@@ -13,12 +13,13 @@
 |------|------|
 | [ART_DIRECTION.md](./ART_DIRECTION.md) | 风格选型、色彩、角色载具造型、验收 |
 | [PROPS.md](./PROPS.md) | 载具 / 订单 / 技能 / 场景物 / 皮肤与事件物 |
+| [VEHICLE_SKILLS.md](./VEHICLE_SKILLS.md) | **载具专属技能（换车即换技）** |
 | [MAPS_AND_SCENES.md](./MAPS_AND_SCENES.md) | 地图规格、大学城 MVP、写字楼与夜市、局外场景 |
 
 ## MVP 内容快照
 
 - **地图：** 仅大学城街区  
 - **载具：** 共享单车、电动车、摩托车  
-- **技能物：** 加速、倒油、假单诱饵  
+- **技能：** 单车铃铛 / 电动冲刺 / 摩托倒油；P2 迈巴赫「拿来吧你」；更多见 [VEHICLE_SKILLS.md](./VEHICLE_SKILLS.md) 
 - **场景物：** 换车站 + 取送点标识  
 - **不做：** 写实材质、迈巴赫、室内场景、复杂天气  
